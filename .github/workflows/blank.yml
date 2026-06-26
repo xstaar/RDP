@@ -1,0 +1,43 @@
+run: |
+  Write-Host ""
+  Write-Host "★ ĐANG DỌN DẸP HỆ THỐNG..." -ForegroundColor Yellow
+
+  $cleanupSteps = @(
+      @{Name="Xóa file password"; Script={
+          Remove-Item "$env:TEMP\rdp_password.txt" -ErrorAction SilentlyContinue
+      }},
+      @{Name="Vô hiệu hóa user"; Script={
+          Disable-LocalUser -Name "AISTV-PREMIUM" -ErrorAction SilentlyContinue
+      }},
+      @{Name="Đóng kết nối mạng"; Script={
+          & "$env:ProgramFiles\Tailscale\tailscale.exe" down --accept-risk=all -ErrorAction SilentlyContinue
+          Start-Sleep -Seconds 5
+      }},
+      @{Name="Xóa rule firewall"; Script={
+          netsh advfirewall firewall delete rule name="RDP-Premium" dir=in -ErrorAction SilentlyContinue
+          netsh advfirewall firewall delete rule name="RDP-Premium-Out" dir=out -ErrorAction SilentlyContinue
+          Remove-NetFirewallRule -DisplayName "RDP-Premium" -ErrorAction SilentlyContinue
+          Remove-NetFirewallRule -DisplayName "RDP-Premium-Out" -ErrorAction SilentlyContinue
+      }},
+      @{Name="Khôi phục cài đặt RDP"; Script={
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 1 -Force -ErrorAction SilentlyContinue
+          Stop-Service -Name TermService -Force -ErrorAction SilentlyContinue
+      }}
+  )
+
+  foreach($step in $cleanupSteps) {
+      Write-Host " ⌛ $($step.Name)..." -NoNewline -ForegroundColor Gray
+      try {
+          & $step.Script
+          Write-Host " [✓] $($step.Name)" -ForegroundColor Green
+      } catch {
+          Write-Host " [▲] $($step.Name) - đã xử lý an toàn" -ForegroundColor Yellow
+      }
+      Start-Sleep -Milliseconds 300
+  }
+
+  # Dọn dẹp jobs còn sót
+  Get-Job | Stop-Job -PassThru | Remove-Job -Force -ErrorAction SilentlyContinue
+
+  Write-Host ""
+  Write-Host "★ Dọn dẹp hoàn tất! Hẹn gặp lại! ♥" -ForegroundColor Green
